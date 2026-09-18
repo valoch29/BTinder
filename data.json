@@ -1,7 +1,14 @@
 {
   "WLH": {
+    "name": "Valère",
     "rank": "FO",
     "base": "TLL",
-    "url": "https://who.airbaltic.com/api/v1/roster/calendar/download/FULL/WLH/1b286eb4-863a-4c45-b8bb-5419dee37e2b"
+    "url": "TON_VRAI_LIEN_WHO_ICI"
+  },
+  "SIM": {
+    "name": "Pilote Fictif",
+    "rank": "FO",
+    "base": "TLL",
+    "url": "https://raw.githubusercontent.com/valoch29/BTinder/main/tests/mock_roster.ics"
   }
 }
