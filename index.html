@@ -15,6 +15,103 @@
   <script type="text/babel">
     const { useState, useEffect } = React;
 
+    function AddPilotForm({ onAdd }) {
+  const [formData, setFormData] = useState({
+    trigram: '',
+    name: '',
+    rank: 'FO',
+    base: 'TLL',
+    ics_url: ''
+  });
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (!formData.trigram || !formData.ics_url) return;
+    
+    // Transmet les données au composant principal
+    onAdd(formData);
+    setFormData({ trigram: '', name: '', rank: 'FO', base: 'TLL', ics_url: '' });
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="bg-slate-800 border border-slate-700 rounded-xl p-6 space-y-4 mb-8">
+      <h2 className="text-lg font-bold text-lime-400">Ajouter mon Roster</h2>
+      
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label className="block text-xs text-slate-400 mb-1">Trigramme (ex: WLH)</label>
+          <input 
+            type="text" 
+            maxLength="3"
+            value={formData.trigram}
+            onChange={(e) => setFormData({...formData, trigram: e.target.value.toUpperCase()})}
+            className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-slate-100 uppercase"
+            placeholder="WLH"
+            required
+          />
+        </div>
+
+        <div>
+          <label className="block text-xs text-slate-400 mb-1">Nom / Prénom</label>
+          <input 
+            type="text" 
+            value={formData.name}
+            onChange={(e) => setFormData({...formData, name: e.target.value})}
+            className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-slate-100"
+            placeholder="Valère"
+            required
+          />
+        </div>
+
+        <div>
+          <label className="block text-xs text-slate-400 mb-1">Fonction</label>
+          <select 
+            value={formData.rank}
+            onChange={(e) => setFormData({...formData, rank: e.target.value})}
+            className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-slate-100"
+          >
+            <option value="FO">First Officer (FO)</option>
+            <option value="CPT">Captain (CPT)</option>
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-xs text-slate-400 mb-1">Base</label>
+          <select 
+            value={formData.base}
+            onChange={(e) => setFormData({...formData, base: e.target.value})}
+            className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-slate-100"
+          >
+            <option value="TLL">Tallinn (TLL)</option>
+            <option value="RIX">Riga (RIX)</option>
+            <option value="VNO">Vilnius (VNO)</option>
+            <option value="TAY">Tartu (TAY)</option>
+          </select>
+        </div>
+      </div>
+
+      <div>
+        <label className="block text-xs text-slate-400 mb-1">Lien iCal (who.airbaltic.com)</label>
+        <input 
+          type="url" 
+          value={formData.ics_url}
+          onChange={(e) => setFormData({...formData, ics_url: e.target.value})}
+          className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-slate-100 text-xs font-mono"
+          placeholder="https://who.airbaltic.com/api/v1/roster/calendar/download/..."
+          required
+        />
+      </div>
+
+      <button 
+        type="submit"
+        className="w-full bg-lime-400 hover:bg-lime-500 text-slate-950 font-bold py-3 rounded-lg transition"
+      >
+        Enregistrer mon Roster
+      </button>
+    </form>
+  );
+}
+
     function App() {
       const [pilotsData, setPilotsData] = useState([]);
       const [loading, setLoading] = useState(true);
