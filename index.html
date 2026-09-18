@@ -3,25 +3,24 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>BTinder — Swap Assistant</title>
+  <title>BTinder — Smart Swap & Triangular Assistant</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <main class="card">
-    <h1>BTinder</h1>
-    <p class="subtitle">Assistant de swap simple & rapide</p>
+  <main class="card wide">
+    <h1>BTinder ✈️</h1>
+    <p class="subtitle">Comparateur de plannings & Swaps Triangulaires</p>
 
-    <div class="input-group">
-      <label for="fileA">Mon fichier Roster (.ics)</label>
-      <input type="file" id="fileA" accept=".ics">
+    <div id="dropZone" class="drop-zone">
+      <label for="filesInput" class="drop-label">
+        📂 Glisse tes fichiers `.ics` / `.txt` ici ou <span>clique pour parcourir</span>
+      </label>
+      <input type="file" id="filesInput" accept=".ics,.txt" multiple>
     </div>
 
-    <div class="input-group">
-      <label for="fileB">Fichier du collègue (.ics)</label>
-      <input type="file" id="fileB" accept=".ics">
-    </div>
+    <div id="fileList" class="file-list"></div>
 
-    <button id="btnCompare" type="button">Vérifier l'échange</button>
+    <button id="btnCompare" type="button" class="hidden">Rechercher les swaps (1v1 & Triangulaires)</button>
 
     <div id="result" class="result-box hidden"></div>
   </main>
