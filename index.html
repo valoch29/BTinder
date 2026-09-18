@@ -32,11 +32,9 @@
       const [url, setUrl] = useState('');
 
       useEffect(() => {
-        // Obtenir le trigramme depuis l'URL (ex: ?pilot=WLH)
         const params = new URLSearchParams(window.location.search);
         const pilotParam = params.get('pilot')?.trim().toUpperCase();
 
-        // Ajout d'un timestamp pour contourner le cache du navigateur / GitHub Pages
         fetch(`data.json?t=${Date.now()}`)
           .then(res => {
             if (!res.ok) throw new Error("Impossible de charger les données (data.json non trouvé).");
@@ -49,11 +47,9 @@
             if (pilotParam) {
               let found = null;
 
-              // Case 1: data.json est un tableau {"pilots": [{id: "WLH", ...}]}
               if (Array.isArray(jsonData.pilots)) {
                 found = jsonData.pilots.find(p => p.id && p.id.toUpperCase() === pilotParam);
               } 
-              // Case 2: data.json est un objet direct {"WLH": {id: "WLH", ...}} ou {"WLH": {...}}
               else if (jsonData[pilotParam]) {
                 found = jsonData[pilotParam];
                 if (!found.id) found.id = pilotParam;
@@ -105,7 +101,6 @@
         reader.readAsText(file);
       };
 
-      // Helper pour extraire la liste des trigrammes quelle que soit la structure de data.json
       const getPilotList = () => {
         if (!data) return [];
         if (Array.isArray(data.pilots)) return data.pilots;
@@ -153,6 +148,10 @@
                 <div className="animate-spin inline-block w-8 h-8 border-4 border-current border-t-transparent text-blue-500 rounded-full mb-4"></div>
                 <p className="text-slate-400">Chargement des données de planning...</p>
               </div>
+            ) : error ? (
+              <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-6 text-center text-red-400">
+                <p>{error}</p>
+              </div>
             ) : currentPilot ? (
               /* Vue Planning Pilote */
               <div className="space-y-6">
@@ -168,7 +167,10 @@
                     </p>
                   </div>
                   <button 
-                    onClick={() => setCurrentPilot(null)}
+                    onClick={() => {
+                      setCurrentPilot(null);
+                      window.history.pushState({}, '', window.location.pathname);
+                    }}
                     className="text-xs text-slate-400 hover:text-white underline"
                   >
                     Changer / S'enregistrer
@@ -304,7 +306,9 @@
       );
     }
 
-    ReactDOM.render(<App />, document.getElementById('root'));
+    // Migration React 18 createRoot
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
   </script>
 </body>
 </html>
