@@ -1,193 +1,292 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="fr" class="dark">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>BTinder - Importer mon Roster airBaltic</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BTinder - Assistant Swap & Roster airBaltic</title>
+
+  <!-- Tailwind CSS & React (via CDN) -->
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <style>
+    body { background-color: #0f172a; color: #f8fafc; }
+  </style>
 </head>
-<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col justify-between font-sans">
+<body>
+  <div id="root"></div>
 
-  <!-- Header -->
-  <header class="border-b border-slate-800 bg-slate-900/50 backdrop-blur">
-    <div class="max-w-4xl mx-auto px-6 py-4 flex items-center justify-between">
-      <div class="flex items-center space-x-3">
-        <span class="text-2xl">✈️</span>
-        <span class="font-bold text-xl tracking-wide text-lime-400">BTinder</span>
-      </div>
-      <span class="text-xs bg-slate-800 text-slate-400 px-3 py-1 rounded-full border border-slate-700">
-        airBaltic Crew Roster Sync
-      </span>
-    </div>
-  </header>
+  <script type="text/babel">
+    const { useState, useEffect } = React;
 
-  <!-- Hero & Formulaire d'invitation -->
-  <main class="max-w-xl mx-auto px-6 py-12 w-full">
-    
-    <div class="text-center mb-8">
-      <h1 class="text-3xl font-extrabold text-white mb-3">
-        Synchronisez votre planning
-      </h1>
-      <p class="text-slate-400 text-sm leading-relaxed">
-        Entrez vos identifiants d'équipage et votre lien iCal personnel. Votre roster sera automatiquement importé et mis à jour 4 fois par jour.
-      </p>
-    </div>
-
-    <!-- Carte Formulaire -->
-    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl relative overflow-hidden">
+    function App() {
+      const [data, setData] = useState(null);
+      const [currentPilot, setCurrentPilot] = useState(null);
+      const [loading, setLoading] = useState(true);
+      const [error, setError] = useState(null);
       
-      <form id="rosterForm" class="space-y-5">
+      // Formulaire d'enregistrement
+      const [trigramme, setTrigramme] = useState('');
+      const [rang, setRang] = useState('FO');
+      const [base, setBase] = useState('TLL');
+      const [url, setUrl] = useState('');
+
+      useEffect(() => {
+        // Obtenir le trigramme depuis l'URL (ex: ?pilot=WLH)
+        const params = new URLSearchParams(window.location.search);
+        const pilotParam = params.get('pilot');
+
+        // Charger data.json
+        fetch('data.json')
+          .then(res => {
+            if (!res.ok) throw new Error("Impossible de charger les données (data.json non trouvé).");
+            return res.json();
+          })
+          .then(jsonData => {
+            setData(jsonData);
+            setLoading(false);
+
+            if (pilotParam) {
+              const found = jsonData.pilots.find(p => p.id.toUpperCase() === pilotParam.toUpperCase());
+              if (found) {
+                setCurrentPilot(found);
+              }
+            }
+          })
+          .catch(err => {
+            console.warn(err);
+            setLoading(false);
+          });
+      }, []);
+
+      const handleRegistration = (e) => {
+        e.preventDefault();
+        const tri = trigramme.toUpperCase().trim();
+        if (tri.length !== 3) {
+          alert("Le trigramme doit comporter exactement 3 lettres.");
+          return;
+        }
+
+        const title = encodeURIComponent(`[PILOT_REGISTRATION] ${tri}`);
+        const body = encodeURIComponent(`Trigramme: ${tri}\nRang: ${rang}\nBase: ${base}\nURL: ${url}`);
         
-        <!-- Trigramme & Nom -->
-        <div class="grid grid-cols-2 gap-4">
-          <div>
-            <label class="block text-xs font-medium text-slate-300 mb-1">Trigramme</label>
-            <input 
-              type="text" 
-              id="trigram"
-              maxlength="3"
-              placeholder="ex: WLH" 
-              required
-              class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-white uppercase placeholder-slate-600 focus:outline-none focus:border-lime-400 focus:ring-1 focus:ring-lime-400 font-mono transition"
-            >
-          </div>
-          <div>
-            <label class="block text-xs font-medium text-slate-300 mb-1">Prénom</label>
-            <input 
-              type="text" 
-              id="name"
-              placeholder="ex: Valère" 
-              required
-              class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-white placeholder-slate-600 focus:outline-none focus:border-lime-400 focus:ring-1 focus:ring-lime-400 transition"
-            >
-          </div>
-        </div>
-
-        <!-- Fonction & Base -->
-        <div class="grid grid-cols-2 gap-4">
-          <div>
-            <label class="block text-xs font-medium text-slate-300 mb-1">Fonction à bord</label>
-            <select id="rank" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-lime-400 focus:ring-1 focus:ring-lime-400 transition">
-              <option value="FO">First Officer (FO)</option>
-              <option value="CPT">Captain (CPT)</option>
-            </select>
-          </div>
-          <div>
-            <label class="block text-xs font-medium text-slate-300 mb-1">Base d'affectation</label>
-            <select id="base" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-lime-400 focus:ring-1 focus:ring-lime-400 transition">
-              <option value="TLL">Tallinn (TLL)</option>
-              <option value="RIX">Riga (RIX)</option>
-              <option value="VNO">Vilnius (VNO)</option>
-              <option value="TAY">Tartu (TAY)</option>
-            </select>
-          </div>
-        </div>
-
-        <!-- Lien iCal -->
-        <div>
-          <label class="block text-xs font-medium text-slate-300 mb-1">Lien iCal (who.airbaltic.com)</label>
-          <input 
-            type="url" 
-            id="icsUrl"
-            placeholder="https://who.airbaltic.com/api/v1/roster/calendar/download/..." 
-            required
-            class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-white text-xs font-mono placeholder-slate-600 focus:outline-none focus:border-lime-400 focus:ring-1 focus:ring-lime-400 transition"
-          >
-          <p class="text-[11px] text-slate-500 mt-1.5">
-            Récupérez ce lien depuis votre profil sur le portail d'équipage.
-          </p>
-        </div>
-
-        <!-- Bouton de soumission -->
-        <button 
-          type="submit" 
-          class="w-full bg-lime-400 hover:bg-lime-300 text-slate-950 font-bold py-3.5 rounded-xl transition duration-200 shadow-lg shadow-lime-400/10 flex items-center justify-center space-x-2"
-        >
-          <span>Enregistrer mon Roster</span>
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"/>
-          </svg>
-        </button>
-
-      </form>
-
-      <!-- Message de confirmation -->
-      <div id="successMessage" class="hidden text-center py-6 space-y-4">
-        <div class="w-12 h-12 bg-lime-400/10 text-lime-400 rounded-full flex items-center justify-center mx-auto border border-lime-400/20">
-          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-          </svg>
-        </div>
-        <div>
-          <h3 class="text-lg font-bold text-white">Roster Enregistré !</h3>
-          <p class="text-xs text-slate-400 mt-1" id="confirmText"></p>
-        </div>
-        <button 
-          onclick="resetForm()" 
-          class="text-xs text-lime-400 hover:underline pt-2 inline-block"
-        >
-          Ajouter un autre pilote
-        </button>
-      </div>
-
-    </div>
-
-    <!-- Note de confidentialité -->
-    <div class="mt-8 text-center">
-      <p class="text-xs text-slate-500">
-        🔒 Vos données de planning sont utilisées exclusivement pour l'importation de calendrier.
-      </p>
-    </div>
-
-  </main>
-
-  <!-- Footer -->
-  <footer class="border-t border-slate-900 py-6 text-center text-xs text-slate-600">
-    airBaltic Crew Tools • Automated Roster Import
-  </footer>
-
-  <script>
-    const form = document.getElementById('rosterForm');
-    const successMsg = document.getElementById('successMessage');
-    const confirmText = document.getElementById('confirmText');
-
-    form.addEventListener('submit', (e) => {
-      e.preventDefault();
-
-      const pilotData = {
-        trigram: document.getElementById('trigram').value.toUpperCase(),
-        name: document.getElementById('name').value,
-        rank: document.getElementById('rank').value,
-        base: document.getElementById('base').value,
-        ics_url: document.getElementById('icsUrl').value,
-        registered_at: new Date().toISOString()
+        // Redirection vers GitHub Issue pré-remplie
+        window.open(`https://github.com/valoch29/BTinder/issues/new?title=${title}&body=${body}`, '_blank');
       };
 
-      // Sauvegarde locale des informations
-      let registeredPilots = JSON.parse(localStorage.getItem('btinder_pilots') || '[]');
-      
-      // Mise à jour si le trigramme existe déjà, sinon ajout
-      const index = registeredPilots.findIndex(p => p.trigram === pilotData.trigram);
-      if (index !== -1) {
-        registeredPilots[index] = pilotData;
-      } else {
-        registeredPilots.push(pilotData);
-      }
+      const handleManualFileUpload = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
 
-      localStorage.setItem('btinder_pilots', JSON.stringify(registeredPilots));
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          const text = event.target.result;
+          // Traitement simple d'urgence du fichier .ics
+          const eventsCount = (text.match(/BEGIN:VEVENT/g) || []).length;
+          setCurrentPilot({
+            id: "MANUAL",
+            name: "Fichier local",
+            rank: "-",
+            base: "-",
+            total_events: eventsCount,
+            duties: []
+          });
+        };
+        reader.readAsText(file);
+      };
 
-      // Bascule de l'affichage
-      form.classList.add('hidden');
-      successMsg.classList.remove('hidden');
-      confirmText.textContent = `Pilote ${pilotData.name} (${pilotData.trigram}) enregistré avec succès. Le calendrier sera synchronisé sous peu.`;
-    });
+      return (
+        <div class="min-h-screen bg-slate-900 text-slate-100 flex flex-col">
+          <!-- Navigation -->
+          <header class="border-b border-slate-800 bg-slate-950/50 backdrop-blur sticky top-0 z-50">
+            <div class="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
+              <div class="flex items-center space-x-3">
+                <span class="text-2xl">✈️</span>
+                <a href="index.html" class="font-bold text-xl tracking-tight text-white">BTinder</a>
+                <span class="text-xs px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20">airBaltic Crew</span>
+              </div>
+              {data && data.pilots && (
+                <div class="flex items-center space-x-2 text-sm text-slate-400">
+                  <span>Pilotes inscrits :</span>
+                  <div class="flex space-x-1">
+                    {data.pilots.map(p => (
+                      <a 
+                        key={p.id} 
+                        href={`index.html?pilot=${p.id}`}
+                        class={`px-2 py-1 rounded text-xs font-mono font-bold transition ${currentPilot && currentPilot.id === p.id ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}
+                      >
+                        {p.id}
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </header>
 
-    function resetForm() {
-      form.reset();
-      form.classList.remove('hidden');
-      successMsg.classList.add('hidden');
+          <!-- Main Content -->
+          <main class="flex-1 max-w-6xl w-full mx-auto px-4 py-8 space-y-8">
+            {loading ? (
+              <div class="text-center py-20">
+                <div class="animate-spin inline-block w-8 h-8 border-4 border-current border-t-transparent text-blue-500 rounded-full mb-4"></div>
+                <p class="text-slate-400">Chargement des données de planning...</p>
+              </div>
+            ) : currentPilot ? (
+              <!-- Vue Planning Pilote -->
+              <div class="space-y-6">
+                <div class="bg-slate-800 border border-slate-700 rounded-xl p-6 flex items-center justify-between">
+                  <div>
+                    <div class="flex items-center space-x-3">
+                      <h1 class="text-2xl font-bold text-white font-mono">{currentPilot.id}</h1>
+                      <span class="text-xs font-bold px-2 py-1 bg-slate-700 rounded text-slate-300">{currentPilot.rank}</span>
+                      <span class="text-xs font-bold px-2 py-1 bg-slate-700 rounded text-slate-300">Base: {currentPilot.base}</span>
+                    </div>
+                    <p class="text-sm text-slate-400 mt-1">Événements enregistrés : {currentPilot.total_events}</p>
+                  </div>
+                  <button 
+                    onClick={() => setCurrentPilot(null)}
+                    class="text-xs text-slate-400 hover:text-white underline"
+                  >
+                    Changer / S'enregistrer
+                  </button>
+                </div>
+
+                <div class="bg-slate-800 border border-slate-700 rounded-xl p-6">
+                  <h2 class="text-lg font-bold text-white mb-4">Planning & Services</h2>
+                  {currentPilot.duties && currentPilot.duties.length > 0 ? (
+                    <div class="space-y-3">
+                      {currentPilot.duties.map((duty, idx) => (
+                        <div key={idx} class="p-4 bg-slate-900 border border-slate-700/50 rounded-lg flex items-center justify-between">
+                          <div>
+                            <span class="font-bold text-blue-400 font-mono text-sm">{duty.type || 'DUTY'}</span>
+                            <div class="text-xs text-slate-400 mt-1">
+                              {duty.checkin && <span>Check-in: {new Date(duty.checkin).toLocaleString()}</span>}
+                              {duty.checkout && <span class="ml-4">Check-out: {new Date(duty.checkout).toLocaleString()}</span>}
+                            </div>
+                          </div>
+                          {duty.flights && duty.flights.length > 0 && (
+                            <div class="flex space-x-1">
+                              {duty.flights.map((f, i) => (
+                                <span key={i} class="px-2 py-0.5 bg-slate-800 text-slate-200 text-xs font-mono rounded">{f}</span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p class="text-sm text-slate-400 italic">Aucune journée de service extraite pour le moment.</p>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <!-- Vue Accueil & Formulaire -->
+              <div class="grid md:grid-cols-2 gap-8 items-start">
+                {/* Formulaire d'Auto-enregistrement */}
+                <div class="bg-slate-800 border border-slate-700 rounded-xl p-6 space-y-4">
+                  <h2 class="text-xl font-bold text-white flex items-center space-x-2">
+                    <span>📝</span>
+                    <span>Enregistrer mon Roster</span>
+                  </h2>
+                  <p class="text-xs text-slate-400">
+                    Renseignez vos informations une seule fois pour publier votre agenda de manière publique à l'adresse <code class="text-blue-400">/BTinder/TRIGRAMME</code>.
+                  </p>
+
+                  <form onSubmit={handleRegistration} class="space-y-4 pt-2">
+                    <div>
+                      <label class="block text-xs font-semibold text-slate-300 mb-1">Trigramme (3 lettres)</label>
+                      <input 
+                        type="text" 
+                        maxLength="3" 
+                        required 
+                        placeholder="ex: WLH" 
+                        value={trigramme} 
+                        onChange={e => setTrigramme(e.target.value)} 
+                        class="w-full bg-slate-900 border border-slate-700 text-white rounded p-2.5 text-sm uppercase font-mono focus:border-blue-500 outline-none" 
+                      />
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                      <div>
+                        <label class="block text-xs font-semibold text-slate-300 mb-1">Rang</label>
+                        <select 
+                          value={rang} 
+                          onChange={e => setRang(e.target.value)} 
+                          class="w-full bg-slate-900 border border-slate-700 text-white rounded p-2.5 text-sm outline-none"
+                        >
+                          <option value="FO">FO - First Officer</option>
+                          <option value="CPT">CPT - Captain</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label class="block text-xs font-semibold text-slate-300 mb-1">Base</label>
+                        <input 
+                          type="text" 
+                          required 
+                          placeholder="ex: TLL" 
+                          value={base} 
+                          onChange={e => setBase(e.target.value)} 
+                          class="w-full bg-slate-900 border border-slate-700 text-white rounded p-2.5 text-sm uppercase font-mono outline-none" 
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label class="block text-xs font-semibold text-slate-300 mb-1">URL iCal / Agenda (who.airbaltic.com)</label>
+                      <input 
+                        type="url" 
+                        required 
+                        placeholder="https://who.airbaltic.com/..." 
+                        value={url} 
+                        onChange={e => setUrl(e.target.value)} 
+                        class="w-full bg-slate-900 border border-slate-700 text-white rounded p-2.5 text-sm text-slate-300 focus:border-blue-500 outline-none" 
+                      />
+                    </div>
+                    <button 
+                      type="submit" 
+                      class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-lg text-sm transition shadow-lg shadow-blue-600/20"
+                    >
+                      Publier mon agenda
+                    </button>
+                  </form>
+                </div>
+
+                {/* Import Manuel & Présentation */}
+                <div class="space-y-6">
+                  <div class="bg-slate-800/50 border border-slate-700/50 rounded-xl p-6">
+                    <h3 class="text-base font-bold text-white mb-2">Comment ça marche ?</h3>
+                    <ol class="list-decimal list-inside text-xs text-slate-400 space-y-2">
+                      <li>Soumettez votre trigramme et votre lien d'agenda iCal personnel.</li>
+                      <li>Le serveur télécharge automatiquement votre planning plusieurs fois par jour.</li>
+                      <li>Consultez votre planning ou celui d'un collègue sur <span class="font-mono text-slate-300">BTinder/TRIGRAMME</span>.</li>
+                      <li>Vérifiez automatiquement la légalité EASA ORO.FTL lors d'un swap.</li>
+                    </ol>
+                  </div>
+
+                  <div class="bg-slate-800/50 border border-slate-700/50 rounded-xl p-6">
+                    <h3 class="text-sm font-bold text-slate-300 mb-2">Import manuel d'urgence (.ics)</h3>
+                    <p class="text-xs text-slate-400 mb-4">Si vous ne souhaitez pas publier votre lien iCal, vous pouvez charger votre fichier d'agenda directement en local :</p>
+                    <input 
+                      type="file" 
+                      accept=".ics" 
+                      onChange={handleManualFileUpload} 
+                      class="block w-full text-xs text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-slate-700 file:text-slate-200 hover:file:bg-slate-600"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+          </main>
+
+          <!-- Footer -->
+          <footer class="border-t border-slate-800 py-6 text-center text-xs text-slate-500">
+            BTinder — Assistant FTL & Swap de planning airBaltic
+          </footer>
+        </div>
+      );
     }
-  </script>
 
+    ReactDOM.render(<App />, document.getElementById('root'));
+  </script>
 </body>
 </html>
