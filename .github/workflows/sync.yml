@@ -1,0 +1,31 @@
+name: Sync Rosters
+
+on:
+  schedule:
+    # S'exécute toutes les 6 heures
+    - cron: '0 */6 * * *'
+  # Permet aussi de déclencher la synchro manuellement depuis GitHub
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout du dépôt
+        uses: actions/checkout@v3
+
+      - name: Configuration de Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+
+      - name: Exécution du script de synchro
+        run: python sync.py
+
+      - name: Commit et Push du fichier data.json
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add data.json
+          git diff --quiet && git diff --staged --quiet || (git commit -m "Auto-update rosters data.json" && git push)
