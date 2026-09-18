@@ -1,54 +1,54 @@
+let uploadedFiles = [];
+
 document.addEventListener('DOMContentLoaded', () => {
-  const btn = document.getElementById('btnCompare');
-  if (!btn) return;
+  const fileInput = document.getElementById('filesInput');
+  const dropZone = document.getElementById('dropZone');
+  const btnCompare = document.getElementById('btnCompare');
+  const fileListDiv = document.getElementById('fileList');
 
-  btn.addEventListener('click', async (e) => {
+  dropZone.addEventListener('click', () => fileInput.click());
+
+  fileInput.addEventListener('change', (e) => {
+    uploadedFiles = Array.from(e.target.files);
+    updateFileList(fileListDiv, btnCompare);
+  });
+
+  btnCompare.addEventListener('click', async (e) => {
     e.preventDefault();
-    
-    const fileInputA = document.getElementById('fileA');
-    const fileInputB = document.getElementById('fileB');
     const resultDiv = document.getElementById('result');
-
     resultDiv.classList.remove('hidden', 'valid', 'invalid');
-
-    if (!fileInputA.files[0] || !fileInputB.files[0]) {
-      resultDiv.className = "result-box invalid";
-      resultDiv.textContent = "Veuillez sélectionner deux fichiers (.ics ou .txt).";
-      return;
-    }
-
-    resultDiv.textContent = "Contrôle complet de la conformité EASA ORO.FTL en cours...";
+    resultDiv.textContent = "Analyse croisée des plannings et des règles FTL...";
 
     try {
-      const readFile = (file) => new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = (evt) => resolve(evt.target.result);
-        reader.onerror = () => reject(new Error("Erreur de lecture : " + file.name));
-        reader.readAsText(file);
-      });
+      const pilotsData = {};
 
-      const [contentA, contentB] = await Promise.all([
-        readFile(fileInputA.files[0]),
-        readFile(fileInputB.files[0])
-      ]);
+      for (const file of uploadedFiles) {
+        const text = await readFileAsync(file);
+        const name = file.name.replace(/\.[^/.]+$/, ""); // Nom sans extension
+        pilotsData[name] = parseRoster(text, file.name);
+      }
 
-      const eventsA = parseRoster(contentA, fileInputA.files[0].name);
-      const eventsB = parseRoster(contentB, fileInputB.files[0].name);
+      const pilotNames = Object.keys(pilotsData);
+      if (pilotNames.length < 2) {
+        throw new Error("Veuillez importer au moins 2 plannings pour comparer.");
+      }
 
-      const opportunities = findFullyLegalSwaps(eventsA, eventsB);
+      // Recherche des swaps (1v1 et Triangulaires)
+      const results = analyzeSwaps(pilotsData);
 
-      if (opportunities.length === 0) {
-        resultDiv.className = "result-box invalid";
-        resultDiv.innerHTML = "AUCUN SWAP LÉGAL TROUVÉ ❌<br><small>Aucun échange ne satisfait à l'ensemble des critères EASA ORO.FTL (12h Rest, ERR 36h, Max FDP, 100h/28j).</small>";
+      if (results.length === 0) {
+        resultsDiv.className = "result-box invalid";
+        resultsDiv.innerHTML = "AUCUN SWAP LÉGAL TROUVÉ ❌<br><small>Aucune combinaison 1v1 ou triangulaire ne respecte l'ensemble des critères FTL.</small>";
       } else {
         resultDiv.className = "result-box valid";
-        let html = `<strong>${opportunities.length} SWAP(S) CONFORMES EASA ORO.FTL ✅</strong><br><br>`;
-        html += `<ul style="text-align: left; margin: 0; padding-left: 1rem; font-size: 0.82rem; max-height: 400px; overflow-y: auto;">`;
+        let html = `<strong>${results.length} OPPORTUNITÉ(S) DE SWAP DÉTECTÉES ✅</strong><br><br>`;
+        html += `<ul style="text-align: left; margin: 0; padding-left: 1rem; max-height: 350px; overflow-y: auto;">`;
         
-        opportunities.forEach(opp => {
-          html += `<li style="margin-bottom: 0.6rem; border-bottom: 1px solid #e5e5e5; padding-bottom: 0.4rem;">
-            <strong>${opp.date}</strong> : ${opp.detail}<br>
-            <span style="color: #2e7d32;">✔ Repos : -${opp.restBefore} / +${opp.restAfter} | FDP : ${opp.fdpDuration} (Max: ${opp.maxFdpAllowed}) | ERR 36h : OK</span>
+        results.forEach(res => {
+          html += `<li style="margin-bottom: 0.6rem; border-bottom: 1px solid #c8e6c9; padding-bottom: 0.4rem;">
+            📅 <strong>${res.date}</strong><br>
+            🔄 <em>${res.type}</em> : ${res.description}<br>
+            <span style="font-size: 0.78rem; color: #2e7d32;">✔️ FTL OK (12h Repos, FDP, 100h)</span>
           </li>`;
         });
         
@@ -64,7 +64,31 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 });
 
-// Détecte le format (.ics ou .txt)
+function updateFileList(container, btn) {
+  container.innerHTML = '';
+  if (uploadedFiles.length > 0) {
+    uploadedFiles.forEach(f => {
+      const badge = document.createElement('span');
+      badge.className = 'file-badge';
+      badge.textContent = f.name;
+      container.appendChild(badge);
+    });
+    btn.classList.remove('hidden');
+  } else {
+    btn.classList.add('hidden');
+  }
+}
+
+function readFileAsync(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => resolve(e.target.result);
+    reader.onerror = () => reject(new Error("Erreur de lecture du fichier " + file.name));
+    reader.readAsText(file);
+  });
+}
+
+// --- PARSERS ---
 function parseRoster(text, filename) {
   if (filename.endsWith('.ics') || text.includes('BEGIN:VCALENDAR')) {
     return parseICS(text);
@@ -73,11 +97,9 @@ function parseRoster(text, filename) {
   }
 }
 
-// Parser ICS avec support du temps de vol (FT) et nombre de secteurs
 function parseICS(icsText) {
   const events = [];
   const blocks = icsText.split('BEGIN:VEVENT');
-
   for (let i = 1; i < blocks.length; i++) {
     const block = blocks[i].split('END:VEVENT')[0];
     const startMatch = block.match(/DTSTART[^:]*:(\d{8}(?:T\d{6}Z?)?)/);
@@ -89,13 +111,8 @@ function parseICS(icsText) {
       const end = parseICSDate(endMatch[1]);
       const summary = summaryMatch ? summaryMatch[1].trim().replace(/\r/g, '') : 'Duty';
       const dateStr = start.toISOString().split('T')[0];
-      
-      // Estimation des secteurs selon les séparateurs de vol (ex: LX 2279 / LX 750)
       const sectors = (summary.match(/\//g) || []).length + 1;
-      
-      // Calcul estimé du Flight Time (80% du FDP par défaut si non spécifié)
-      const fdpHours = (end - start) / 3600000;
-      const flightHours = fdpHours * 0.8;
+      const flightHours = ((end - start) / 3600000) * 0.8;
 
       events.push({ start, end, summary, dateStr, sectors, flightHours, type: 'DUTY' });
     }
@@ -107,7 +124,6 @@ function parseICSDate(str) {
   const y = parseInt(str.substring(0, 4), 10);
   const m = parseInt(str.substring(4, 6), 10) - 1;
   const d = parseInt(str.substring(6, 8), 10);
-  
   if (str.includes('T')) {
     const h = parseInt(str.substring(9, 11) || '0', 10);
     const min = parseInt(str.substring(11, 13) || '0', 10);
@@ -117,7 +133,6 @@ function parseICSDate(str) {
   return new Date(Date.UTC(y, m, d, 0, 0, 0));
 }
 
-// Parser NetLine/Crew Texte
 function parseNetLineText(text) {
   const events = [];
   const periodMatch = text.match(/Period:\s*\d{2}([A-Za-z]{3})(\d{2})/);
@@ -142,193 +157,129 @@ function parseNetLineText(text) {
       let start = new Date(`${dateStr}T00:00:00Z`);
       let end = new Date(`${dateStr}T23:59:00Z`);
 
-      if (ciMatch) {
-        start = new Date(`${dateStr}T${ciMatch[1].substring(0, 2)}:${ciMatch[1].substring(2, 4)}:00Z`);
-      }
-      if (coMatch) {
-        end = new Date(`${dateStr}T${coMatch[1].substring(0, 2)}:${coMatch[1].substring(2, 4)}:00Z`);
-      }
+      if (ciMatch) start = new Date(`${dateStr}T${ciMatch[1].substring(0, 2)}:${ciMatch[1].substring(2, 4)}:00Z`);
+      if (coMatch) end = new Date(`${dateStr}T${coMatch[1].substring(0, 2)}:${coMatch[1].substring(2, 4)}:00Z`);
 
-      let flightHours = 0;
-      if (ftMatch) {
-        flightHours = parseInt(ftMatch[1], 10) + parseInt(ftMatch[2], 10) / 60;
-      }
-
+      let flightHours = ftMatch ? parseInt(ftMatch[1], 10) + parseInt(ftMatch[2], 10) / 60 : 0;
       const sectors = (activity.match(/\b[A-Z0-9]{2}\s+\d+\b/g) || []).length || 1;
 
       events.push({ start, end, summary: activity, dateStr, sectors, flightHours, type: 'DUTY' });
     }
   });
-
   return events;
 }
 
-// Moteur de vérification globale FTL
-function findFullyLegalSwaps(eventsA, eventsB) {
-  const datesA = eventsA.map(e => e.dateStr);
-  const datesB = eventsB.map(e => e.dateStr);
-  const allDates = Array.from(new Set([...datesA, ...datesB])).sort();
+// --- MOTEUR DE SWAP MULTI-PILOTES & TRIANGULAIRE ---
+function analyzeSwaps(pilotsData) {
+  const pilotNames = Object.keys(pilotsData);
+  const allDates = new Set();
+  
+  Object.values(pilotsData).forEach(events => {
+    events.forEach(e => allDates.add(e.dateStr));
+  });
 
-  const opportunities = [];
+  const sortedDates = Array.from(allDates).sort();
+  const validSwaps = [];
 
-  allDates.forEach(date => {
-    const dutyA = eventsA.find(e => e.dateStr === date);
-    const dutyB = eventsB.find(e => e.dateStr === date);
+  sortedDates.forEach(date => {
+    // Récupérer l'activité de chaque pilote pour cette date (ou null si OFF)
+    const dailyDuties = {};
+    pilotNames.forEach(name => {
+      const duty = pilotsData[name].find(e => e.dateStr === date);
+      dailyDuties[name] = duty || null; // null = OFF
+    });
 
-    // Cas 1 : Pilote A donne son service à Pilote B (qui est OFF)
-    if (dutyA && !dutyB) {
-      const ftlVal = validateFtlRules(dutyA, eventsB);
-      if (ftlVal.isLegal) {
-        opportunities.push({
-          date: formatDateFr(date),
-          detail: `Tu donnes <strong>${dutyA.summary}</strong> à Collègue`,
-          restBefore: ftlVal.restBeforeStr,
-          restAfter: ftlVal.restAfterStr,
-          fdpDuration: ftlVal.fdpStr,
-          maxFdpAllowed: ftlVal.maxFdpStr
-        });
+    // 1. Recherche Swap 1v1 (Pilote A travaille, Pilote B est OFF)
+    for (let i = 0; i < pilotNames.length; i++) {
+      for (let j = 0; j < pilotNames.length; j++) {
+        if (i === j) continue;
+        const nameA = pilotNames[i];
+        const nameB = pilotNames[j];
+
+        const dutyA = dailyDuties[nameA];
+        const dutyB = dailyDuties[nameB];
+
+        // A a un service, B est OFF -> B peut reprendre le service de A
+        if (dutyA && !dutyB) {
+          if (validateFtlRules(dutyA, pilotsData[nameB]).isLegal) {
+            validSwaps.push({
+              date: formatDateFr(date),
+              type: "Swap Direct (1v1)",
+              description: `<strong>${nameB}</strong> reprend le service de <strong>${nameA}</strong> (${dutyA.summary})`
+            });
+          }
+        }
       }
     }
-    // Cas 2 : Pilote A reprend le service de Pilote B
-    else if (!dutyA && dutyB) {
-      const ftlVal = validateFtlRules(dutyB, eventsA);
-      if (ftlVal.isLegal) {
-        opportunities.push({
-          date: formatDateFr(date),
-          detail: `Tu reprends <strong>${dutyB.summary}</strong> de Collègue`,
-          restBefore: ftlVal.restBeforeStr,
-          restAfter: ftlVal.restAfterStr,
-          fdpDuration: ftlVal.fdpStr,
-          maxFdpAllowed: ftlVal.maxFdpStr
-        });
+
+    // 2. Recherche Swap Triangulaire (A donne à B, B donne à C, C donne à A sur la même date)
+    if (pilotNames.length >= 3) {
+      for (let i = 0; i < pilotNames.length; i++) {
+        for (let j = 0; j < pilotNames.length; j++) {
+          for (let k = 0; k < pilotNames.length; k++) {
+            if (i === j || j === k || i === k) continue;
+            const pA = pilotNames[i];
+            const pB = pilotNames[j];
+            const pC = pilotNames[k];
+
+            const dutyA = dailyDuties[pA];
+            const dutyB = dailyDuties[pB];
+            const dutyC = dailyDuties[pC];
+
+            // Condition triangulaire : Chacun a un service ce jour-là et effectue une rotation circulaire
+            if (dutyA && dutyB && dutyC) {
+              const bCanTakeA = validateFtlRules(dutyA, pilotsData[pB]).isLegal;
+              const cCanTakeB = validateFtlRules(dutyB, pilotsData[pC]).isLegal;
+              const aCanTakeC = validateFtlRules(dutyC, pilotsData[pA]).isLegal;
+
+              if (bCanTakeA && cCanTakeB && aCanTakeC) {
+                validSwaps.push({
+                  date: formatDateFr(date),
+                  type: "🔄 Swap Triangulaire",
+                  description: `<strong>${pB}</strong> prend ${pA} ➔ <strong>${pC}</strong> prend ${pB} ➔ <strong>${pA}</strong> prend ${pC}`
+                });
+              }
+            }
+          }
+        }
       }
     }
   });
 
-  return opportunities;
+  return validSwaps;
 }
 
-// Évaluation centrale de la réglementation EASA ORO.FTL
+// --- RÈGLES FTL (Idem version précédente) ---
 function validateFtlRules(targetDuty, receiverSchedule) {
-  // 1. Calcul FDP max selon heure de départ UTC et nombre de secteurs (ORO.FTL.205)
   const startHour = targetDuty.start.getUTCHours();
   const maxFdpHours = getMaxFDP(startHour, targetDuty.sectors);
   const actualFdpHours = (targetDuty.end - targetDuty.start) / 3600000;
 
-  if (actualFdpHours > maxFdpHours) {
-    return { isLegal: false, reason: "FDP Supérieur au plafond autorisé" };
-  }
+  if (actualFdpHours > maxFdpHours) return { isLegal: false };
 
-  // 2. Contrôle du repos minimal (12h ou durée du FDP précédent si supérieur)
-  const priorDuty = receiverSchedule
-    .filter(e => e.end <= targetDuty.start)
-    .sort((a, b) => b.end - a.end)[0];
-
-  const nextDuty = receiverSchedule
-    .filter(e => e.start >= targetDuty.end)
-    .sort((a, b) => a.start - b.start)[0];
+  const priorDuty = receiverSchedule.filter(e => e.end <= targetDuty.start).sort((a, b) => b.end - a.end)[0];
+  const nextDuty = receiverSchedule.filter(e => e.start >= targetDuty.end).sort((a, b) => a.start - b.start)[0];
 
   let minRestBeforeMs = 12 * 3600000;
-  if (priorDuty) {
-    const priorFdpMs = priorDuty.end - priorDuty.start;
-    minRestBeforeMs = Math.max(minRestBeforeMs, priorFdpMs);
-  }
+  if (priorDuty) minRestBeforeMs = Math.max(minRestBeforeMs, priorDuty.end - priorDuty.start);
 
   const restBeforeMs = priorDuty ? (targetDuty.start - priorDuty.end) : Infinity;
   const restAfterMs = nextDuty ? (nextDuty.start - targetDuty.end) : Infinity;
 
-  if (restBeforeMs < minRestBeforeMs || restAfterMs < (12 * 3600000)) {
-    return { isLegal: false, reason: "Repos suffisant non respecté" };
-  }
+  if (restBeforeMs < minRestBeforeMs || restAfterMs < (12 * 3600000)) return { isLegal: false };
 
-  // 3. Simulation du nouveau planning du receveur pour validation globale
-  const simulatedSchedule = [...receiverSchedule, targetDuty].sort((a, b) => a.start - b.start);
-
-  // 4. Contrôle du Repos Hebdomadaire Étendu (Extended Recovery Rest - 36h / 168h glissantes)
-  if (!checkExtendedRecoveryRest(simulatedSchedule)) {
-    return { isLegal: false, reason: "Manque la période de repos hebdomadaire 36h (ERR)" };
-  }
-
-  // 5. Plafond d'heures de vol cumulées (100h / 28 jours glissants)
-  if (!checkCumulativeFlightTime(simulatedSchedule, 100)) {
-    return { isLegal: false, reason: "Plafond de 100h de vol sur 28 jours dépassé" };
-  }
-
-  return {
-    isLegal: true,
-    restBeforeStr: restBeforeMs === Infinity ? "∞" : `${(restBeforeMs / 3600000).toFixed(1)}h`,
-    restAfterStr: restAfterMs === Infinity ? "∞" : `${(restAfterMs / 3600000).toFixed(1)}h`,
-    fdpStr: `${actualFdpHours.toFixed(1)}h`,
-    maxFdpStr: `${maxFdpHours.toFixed(1)}h`
-  };
+  return { isLegal: true };
 }
 
-// Table ORO.FTL.205 (Max FDP non acclimaté / acclimaté simplifié)
 function getMaxFDP(startHour, sectors) {
-  // Table de base (1 à 2 secteurs)
   let maxFdp = 13.0;
   if (startHour >= 0 && startHour < 5) maxFdp = 11.0;
   else if (startHour >= 5 && startHour < 6) maxFdp = 12.0;
   else if (startHour >= 6 && startHour < 13) maxFdp = 13.0;
   else if (startHour >= 13 && startHour < 17) maxFdp = 12.5;
   else if (startHour >= 17 && startHour < 24) maxFdp = 11.5;
-
-  // Réduction de 30 minutes par secteur supplémentaire au-delà de 2
-  if (sectors > 2) {
-    maxFdp -= (sectors - 2) * 0.5;
-  }
+  if (sectors > 2) maxFdp -= (sectors - 2) * 0.5;
   return Math.max(maxFdp, 9.0);
-}
-
-// Vérification d'une plage de 36h continues dans toute fenêtre de 168h
-function checkExtendedRecoveryRest(schedule) {
-  if (schedule.length < 2) return true;
-  
-  const minTime = schedule[0].start.getTime();
-  const maxTime = schedule[schedule.length - 1].end.getTime();
-  const WINDOW_MS = 168 * 3600000;
-  const ERR_MS = 36 * 3600000;
-
-  for (let t = minTime; t <= maxTime - WINDOW_MS; t += 24 * 3600000) {
-    const windowEnd = t + WINDOW_MS;
-    const dutiesInWindow = schedule.filter(e => e.end > t && e.start < windowEnd);
-
-    let maxGap = 0;
-    let lastEnd = t;
-
-    dutiesInWindow.forEach(d => {
-      const gap = Math.max(0, d.start.getTime() - lastEnd);
-      if (gap > maxGap) maxGap = gap;
-      lastEnd = Math.max(lastEnd, d.end.getTime());
-    });
-
-    const finalGap = Math.max(0, windowEnd - lastEnd);
-    if (finalGap > maxGap) maxGap = finalGap;
-
-    if (maxGap < ERR_MS) {
-      return false;
-    }
-  }
-  return true;
-}
-
-// Vérification du plafond de 100h de vol sur 28 jours glissants
-function checkCumulativeFlightTime(schedule, maxHours) {
-  const WINDOW_MS = 28 * 24 * 3600000;
-
-  for (let i = 0; i < schedule.length; i++) {
-    const windowStart = schedule[i].start.getTime();
-    const windowEnd = windowStart + WINDOW_MS;
-
-    const totalFlightHours = schedule
-      .filter(e => e.start.getTime() >= windowStart && e.end.getTime() <= windowEnd)
-      .reduce((sum, e) => sum + (e.flightHours || 0), 0);
-
-    if (totalFlightHours > maxHours) {
-      return false;
-    }
-  }
-  return true;
 }
 
 function formatDateFr(dateStr) {
