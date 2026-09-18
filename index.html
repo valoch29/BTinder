@@ -1,314 +1,111 @@
 <!DOCTYPE html>
-<html lang="fr" class="dark">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>BTinder - Assistant Swap & Roster airBaltic</title>
-  <!-- Tailwind CSS & React (via CDN) -->
+  <title>BTinder - Submit Roster</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
-  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <style>
-    body { background-color: #0f172a; color: #f8fafc; }
+    body { background-color: #0f172a; color: #f8fafc; font-family: ui-sans-serif, system-ui, sans-serif; }
   </style>
 </head>
-<body>
-  <div id="root"></div>
+<body class="min-h-screen flex items-center justify-center p-4">
 
-  <script type="text/babel">
-    const { useState, useEffect } = React;
+  <main class="w-full max-w-md bg-slate-800/90 border border-slate-700/80 rounded-2xl p-6 shadow-2xl space-y-6">
+    
+    <!-- Header Section -->
+    <header class="text-center space-y-1">
+      <div class="inline-flex items-center justify-center space-x-2">
+        <span class="text-2xl">✈️</span>
+        <h1 class="text-2xl font-bold tracking-tight text-white">BTinder</h1>
+      </div>
+      <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider">airBaltic Crew Swap Assistant</p>
+    </header>
 
-    function App() {
-      const [data, setData] = useState(null);
-      const [currentPilot, setCurrentPilot] = useState(null);
-      const [loading, setLoading] = useState(true);
-      const [error, setError] = useState(null);
+    <!-- Roster Form -->
+    <form id="rosterForm" class="space-y-4">
       
-      // Formulaire d'enregistrement
-      const [trigramme, setTrigramme] = useState('');
-      const [rang, setRang] = useState('FO');
-      const [base, setBase] = useState('TLL');
-      const [url, setUrl] = useState('');
+      <!-- Trigram Input -->
+      <div>
+        <label for="tri" class="block text-xs font-semibold text-slate-300 mb-1">Trigram</label>
+        <input 
+          id="tri" 
+          type="text" 
+          maxlength="3" 
+          required 
+          placeholder="WLH" 
+          class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm uppercase font-mono font-bold tracking-widest text-white focus:border-blue-500 focus:outline-none transition"
+        />
+      </div>
 
-      useEffect(() => {
-        const params = new URLSearchParams(window.location.search);
-        const pilotParam = params.get('pilot')?.trim().toUpperCase();
-
-        fetch(`data.json?t=${Date.now()}`)
-          .then(res => {
-            if (!res.ok) throw new Error("Impossible de charger les données (data.json non trouvé).");
-            return res.json();
-          })
-          .then(jsonData => {
-            setData(jsonData);
-            setLoading(false);
-
-            if (pilotParam) {
-              let found = null;
-
-              if (Array.isArray(jsonData.pilots)) {
-                found = jsonData.pilots.find(p => p.id && p.id.toUpperCase() === pilotParam);
-              } 
-              else if (jsonData[pilotParam]) {
-                found = jsonData[pilotParam];
-                if (!found.id) found.id = pilotParam;
-              }
-
-              if (found) {
-                setCurrentPilot(found);
-              } else {
-                console.warn(`Pilote ${pilotParam} non trouvé dans data.json`);
-              }
-            }
-          })
-          .catch(err => {
-            console.error(err);
-            setError(err.message);
-            setLoading(false);
-          });
-      }, []);
-
-      const handleRegistration = (e) => {
-        e.preventDefault();
-        const tri = trigramme.toUpperCase().trim();
-        if (tri.length !== 3) {
-          alert("Le trigramme doit comporter exactement 3 lettres.");
-          return;
-        }
-        const title = encodeURIComponent(`[PILOT_REGISTRATION] ${tri}`);
-        const body = encodeURIComponent(`Trigramme: ${tri}\nRang: ${rang}\nBase: ${base}\nURL: ${url}`);
-        
-        window.open(`https://github.com/valoch29/BTinder/issues/new?title=${title}&body=${body}`, '_blank');
-      };
-
-      const handleManualFileUpload = (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
-        const reader = new FileReader();
-        reader.onload = (event) => {
-          const text = event.target.result;
-          const eventsCount = (text.match(/BEGIN:VEVENT/g) || []).length;
-          setCurrentPilot({
-            id: "MANUAL",
-            name: "Fichier local",
-            rank: "-",
-            base: "-",
-            total_events: eventsCount,
-            duties: []
-          });
-        };
-        reader.readAsText(file);
-      };
-
-      const getPilotList = () => {
-        if (!data) return [];
-        if (Array.isArray(data.pilots)) return data.pilots;
-        return Object.keys(data).map(key => ({
-          id: key,
-          ...data[key]
-        }));
-      };
-
-      const pilotsList = getPilotList();
-
-      return (
-        <div className="min-h-screen bg-slate-900 text-slate-100 flex flex-col">
-          {/* Navigation */}
-          <header className="border-b border-slate-800 bg-slate-950/50 backdrop-blur sticky top-0 z-50">
-            <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                <span className="text-2xl">✈️</span>
-                <a href="index.html" className="font-bold text-xl tracking-tight text-white">BTinder</a>
-                <span className="text-xs px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20">airBaltic Crew</span>
-              </div>
-              {pilotsList.length > 0 && (
-                <div className="flex items-center space-x-2 text-sm text-slate-400">
-                  <span>Pilotes inscrits :</span>
-                  <div className="flex space-x-1">
-                    {pilotsList.map(p => (
-                      <a 
-                        key={p.id} 
-                        href={`index.html?pilot=${p.id}`}
-                        className={`px-2 py-1 rounded text-xs font-mono font-bold transition ${currentPilot && currentPilot.id === p.id ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}
-                      >
-                        {p.id}
-                      </a>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          </header>
-
-          {/* Main Content */}
-          <main className="flex-1 max-w-6xl w-full mx-auto px-4 py-8 space-y-8">
-            {loading ? (
-              <div className="text-center py-20">
-                <div className="animate-spin inline-block w-8 h-8 border-4 border-current border-t-transparent text-blue-500 rounded-full mb-4"></div>
-                <p className="text-slate-400">Chargement des données de planning...</p>
-              </div>
-            ) : error ? (
-              <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-6 text-center text-red-400">
-                <p>{error}</p>
-              </div>
-            ) : currentPilot ? (
-              /* Vue Planning Pilote */
-              <div className="space-y-6">
-                <div className="bg-slate-800 border border-slate-700 rounded-xl p-6 flex items-center justify-between">
-                  <div>
-                    <div className="flex items-center space-x-3">
-                      <h1 className="text-2xl font-bold text-white font-mono">{currentPilot.id}</h1>
-                      <span className="text-xs font-bold px-2 py-1 bg-slate-700 rounded text-slate-300">{currentPilot.rank || 'FO'}</span>
-                      <span className="text-xs font-bold px-2 py-1 bg-slate-700 rounded text-slate-300">Base: {currentPilot.base || 'TLL'}</span>
-                    </div>
-                    <p className="text-sm text-slate-400 mt-1">
-                      Événements enregistrés : {currentPilot.total_events || (currentPilot.duties ? currentPilot.duties.length : 0)}
-                    </p>
-                  </div>
-                  <button 
-                    onClick={() => {
-                      setCurrentPilot(null);
-                      window.history.pushState({}, '', window.location.pathname);
-                    }}
-                    className="text-xs text-slate-400 hover:text-white underline"
-                  >
-                    Changer / S'enregistrer
-                  </button>
-                </div>
-
-                <div className="bg-slate-800 border border-slate-700 rounded-xl p-6">
-                  <h2 className="text-lg font-bold text-white mb-4">Planning & Services</h2>
-                  {currentPilot.duties && currentPilot.duties.length > 0 ? (
-                    <div className="space-y-3">
-                      {currentPilot.duties.map((duty, idx) => (
-                        <div key={idx} className="p-4 bg-slate-900 border border-slate-700/50 rounded-lg flex items-center justify-between">
-                          <div>
-                            <span className="font-bold text-blue-400 font-mono text-sm">{duty.type || duty.summary || 'DUTY'}</span>
-                            <div className="text-xs text-slate-400 mt-1">
-                              {duty.checkin && <span>Check-in: {new Date(duty.checkin).toLocaleString()}</span>}
-                              {duty.checkout && <span className="ml-4">Check-out: {new Date(duty.checkout).toLocaleString()}</span>}
-                              {duty.start && !duty.checkin && <span>Début: {duty.start}</span>}
-                            </div>
-                          </div>
-                          {duty.flights && duty.flights.length > 0 && (
-                            <div className="flex space-x-1">
-                              {duty.flights.map((f, i) => (
-                                <span key={i} className="px-2 py-0.5 bg-slate-800 text-slate-200 text-xs font-mono rounded">{f}</span>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-sm text-slate-400 italic">Aucune journée de service extraite pour le moment.</p>
-                  )}
-                </div>
-              </div>
-            ) : (
-              /* Vue Accueil & Formulaire */
-              <div className="grid md:grid-cols-2 gap-8 items-start">
-                <div className="bg-slate-800 border border-slate-700 rounded-xl p-6 space-y-4">
-                  <h2 className="text-xl font-bold text-white flex items-center space-x-2">
-                    <span>📝</span>
-                    <span>Enregistrer mon Roster</span>
-                  </h2>
-                  <p className="text-xs text-slate-400">
-                    Renseignez vos informations une seule fois pour publier votre agenda de manière publique à l'adresse <code className="text-blue-400">?pilot=TRIGRAMME</code>.
-                  </p>
-                  <form onSubmit={handleRegistration} className="space-y-4 pt-2">
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-300 mb-1">Trigramme (3 lettres)</label>
-                      <input 
-                        type="text" 
-                        maxLength="3" 
-                        required 
-                        placeholder="ex: WLH" 
-                        value={trigramme} 
-                        onChange={e => setTrigramme(e.target.value)} 
-                        className="w-full bg-slate-900 border border-slate-700 text-white rounded p-2.5 text-sm uppercase font-mono focus:border-blue-500 outline-none" 
-                      />
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-xs font-semibold text-slate-300 mb-1">Rang</label>
-                        <select 
-                          value={rang} 
-                          onChange={e => setRang(e.target.value)} 
-                          className="w-full bg-slate-900 border border-slate-700 text-white rounded p-2.5 text-sm outline-none"
-                        >
-                          <option value="FO">FO - First Officer</option>
-                          <option value="CPT">CPT - Captain</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label className="block text-xs font-semibold text-slate-300 mb-1">Base</label>
-                        <input 
-                          type="text" 
-                          required 
-                          placeholder="ex: TLL" 
-                          value={base} 
-                          onChange={e => setBase(e.target.value)} 
-                          className="w-full bg-slate-900 border border-slate-700 text-white rounded p-2.5 text-sm uppercase font-mono outline-none" 
-                        />
-                      </div>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-300 mb-1">URL iCal / Agenda (who.airbaltic.com)</label>
-                      <input 
-                        type="url" 
-                        required 
-                        placeholder="https://who.airbaltic.com/..." 
-                        value={url} 
-                        onChange={e => setUrl(e.target.value)} 
-                        className="w-full bg-slate-900 border border-slate-700 text-white rounded p-2.5 text-sm text-slate-300 focus:border-blue-500 outline-none" 
-                      />
-                    </div>
-                    <button 
-                      type="submit" 
-                      className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-lg text-sm transition shadow-lg shadow-blue-600/20"
-                    >
-                      Publier mon agenda
-                    </button>
-                  </form>
-                </div>
-
-                <div className="space-y-6">
-                  <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-6">
-                    <h3 className="text-base font-bold text-white mb-2">Comment ça marche ?</h3>
-                    <ol className="list-decimal list-inside text-xs text-slate-400 space-y-2">
-                      <li>Soumettez votre trigramme et votre lien d'agenda iCal personnel.</li>
-                      <li>Le serveur télécharge automatiquement votre planning plusieurs fois par jour.</li>
-                      <li>Consultez votre planning ou celui d'un collègue sur <span className="font-mono text-slate-300">?pilot=TRIGRAMME</span>.</li>
-                      <li>Vérifiez automatiquement la légalité EASA ORO.FTL lors d'un swap.</li>
-                    </ol>
-                  </div>
-                  <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-6">
-                    <h3 className="text-sm font-bold text-slate-300 mb-2">Import manuel d'urgence (.ics)</h3>
-                    <p className="text-xs text-slate-400 mb-4">Si vous ne souhaitez pas publier votre lien iCal, vous pouvez charger votre fichier d'agenda directement en local :</p>
-                    <input 
-                      type="file" 
-                      accept=".ics" 
-                      onChange={handleManualFileUpload} 
-                      className="block w-full text-xs text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-slate-700 file:text-slate-200 hover:file:bg-slate-600"
-                    />
-                  </div>
-                </div>
-              </div>
-            )}
-          </main>
-
-          <footer className="border-t border-slate-800 py-6 text-center text-xs text-slate-500">
-            BTinder — Assistant FTL & Swap de planning airBaltic
-          </footer>
+      <!-- Rank & Base Inputs -->
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label for="rank" class="block text-xs font-semibold text-slate-300 mb-1">Rank</label>
+          <select id="rank" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:border-blue-500 focus:outline-none transition">
+            <option value="FO">FO - First Officer</option>
+            <option value="CPT">CPT - Captain</option>
+          </select>
         </div>
-      );
-    }
+        <div>
+          <label for="base" class="block text-xs font-semibold text-slate-300 mb-1">Base</label>
+          <input 
+            id="base" 
+            type="text" 
+            required 
+            placeholder="TLL" 
+            value="TLL" 
+            class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm uppercase font-mono text-white focus:border-blue-500 focus:outline-none transition"
+          />
+        </div>
+      </div>
 
-    // Migration React 18 createRoot
-    const root = ReactDOM.createRoot(document.getElementById('root'));
-    root.render(<App />);
+      <!-- iCal URL Input -->
+      <div>
+        <label for="url" class="block text-xs font-semibold text-slate-300 mb-1">iCal URL</label>
+        <input 
+          id="url" 
+          type="url" 
+          required 
+          placeholder="https://who.airbaltic.com/..." 
+          class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm text-slate-200 focus:border-blue-500 focus:outline-none transition"
+        />
+      </div>
+
+      <!-- Submit Button -->
+      <button 
+        type="submit" 
+        className="w-full bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white font-bold py-3 rounded-lg text-sm shadow-lg shadow-blue-600/20 transition duration-150 ease-in-out cursor-pointer"
+        style="width: 100%;"
+      >
+        Submit Roster Link
+      </button>
+
+    </form>
+
+    <!-- Simple Footer -->
+    <footer class="text-center text-xs text-slate-500 pt-2 border-t border-slate-700/50">
+      Submitting opens a pre-filled GitHub Issue for sync.
+    </footer>
+
+  </main>
+
+  <script>
+    document.getElementById('rosterForm').addEventListener('submit', (e) => {
+      e.preventDefault();
+      
+      const tri = document.getElementById('tri').value.toUpperCase().trim();
+      const rank = document.getElementById('rank').value;
+      const base = document.getElementById('base').value.toUpperCase().trim();
+      const url = document.getElementById('url').value.trim();
+
+      const title = encodeURIComponent(`[PILOT_REGISTRATION] ${tri}`);
+      const body = encodeURIComponent(`Trigramme: ${tri}\nRang: ${rank}\nBase: ${base}\nURL: ${url}`);
+
+      // Opens a pre-filled GitHub issue in a new tab
+      window.open(`https://github.com/valoch29/BTinder/issues/new?title=${title}&body=${body}`, '_blank');
+    });
   </script>
+
 </body>
 </html>
