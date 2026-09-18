@@ -41,7 +41,15 @@
       const app = document.getElementById("app");
       try {
         // 1. Charger data.json
-        const resData = await fetch('./data.json');
+        // Avant (qui bloque sur les serveurs externes) :
+const resIcs = await fetch(pilot.url);
+
+// Après (avec le proxy CORS) :
+const fetchUrl = pilot.url.includes('githubusercontent.com') 
+  ? pilot.url 
+  : `https://api.corsproxy.io/?${encodeURIComponent(pilot.url)}`;
+
+const resIcs = await fetch(fetchUrl);
         const pilots = await resData.json();
 
         app.innerHTML = ""; // Vider le loader
