@@ -1,111 +1,97 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="fr">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>BTinder - Submit Roster</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BTinder - airBaltic Roster</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <style>
-    body { background-color: #0f172a; color: #f8fafc; font-family: ui-sans-serif, system-ui, sans-serif; }
-  </style>
 </head>
-<body class="min-h-screen flex items-center justify-center p-4">
-
-  <main class="w-full max-w-md bg-slate-800/90 border border-slate-700/80 rounded-2xl p-6 shadow-2xl space-y-6">
-    
-    <!-- Header Section -->
-    <header class="text-center space-y-1">
-      <div class="inline-flex items-center justify-center space-x-2">
-        <span class="text-2xl">✈️</span>
-        <h1 class="text-2xl font-bold tracking-tight text-white">BTinder</h1>
-      </div>
-      <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider">airBaltic Crew Swap Assistant</p>
+<body class="bg-slate-900 text-slate-100 p-6 min-h-screen">
+  <div class="max-w-4xl mx-auto">
+    <header class="border-b border-slate-700 pb-4 mb-6 flex justify-between items-center">
+      <h1 class="text-2xl font-bold text-lime-400">✈️ BTinder</h1>
+      <span className="text-xs bg-slate-800 border border-slate-700 px-3 py-1 rounded-full text-slate-400">
+        Mode Simple (Direct ICS)
+      </span>
     </header>
 
-    <!-- Roster Form -->
-    <form id="rosterForm" class="space-y-4">
-      
-      <!-- Trigram Input -->
-      <div>
-        <label for="tri" class="block text-xs font-semibold text-slate-300 mb-1">Trigram</label>
-        <input 
-          id="tri" 
-          type="text" 
-          maxlength="3" 
-          required 
-          placeholder="WLH" 
-          class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm uppercase font-mono font-bold tracking-widest text-white focus:border-blue-500 focus:outline-none transition"
-        />
-      </div>
-
-      <!-- Rank & Base Inputs -->
-      <div class="grid grid-cols-2 gap-3">
-        <div>
-          <label for="rank" class="block text-xs font-semibold text-slate-300 mb-1">Rank</label>
-          <select id="rank" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:border-blue-500 focus:outline-none transition">
-            <option value="FO">FO - First Officer</option>
-            <option value="CPT">CPT - Captain</option>
-          </select>
-        </div>
-        <div>
-          <label for="base" class="block text-xs font-semibold text-slate-300 mb-1">Base</label>
-          <input 
-            id="base" 
-            type="text" 
-            required 
-            placeholder="TLL" 
-            value="TLL" 
-            class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm uppercase font-mono text-white focus:border-blue-500 focus:outline-none transition"
-          />
-        </div>
-      </div>
-
-      <!-- iCal URL Input -->
-      <div>
-        <label for="url" class="block text-xs font-semibold text-slate-300 mb-1">iCal URL</label>
-        <input 
-          id="url" 
-          type="url" 
-          required 
-          placeholder="https://who.airbaltic.com/..." 
-          class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm text-slate-200 focus:border-blue-500 focus:outline-none transition"
-        />
-      </div>
-
-      <!-- Submit Button -->
-      <button 
-        type="submit" 
-        className="w-full bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white font-bold py-3 rounded-lg text-sm shadow-lg shadow-blue-600/20 transition duration-150 ease-in-out cursor-pointer"
-        style="width: 100%;"
-      >
-        Submit Roster Link
-      </button>
-
-    </form>
-
-    <!-- Simple Footer -->
-    <footer class="text-center text-xs text-slate-500 pt-2 border-t border-slate-700/50">
-      Submitting opens a pre-filled GitHub Issue for sync.
-    </footer>
-
-  </main>
+    <div id="app" class="space-y-6">
+      <p class="text-slate-400 text-sm">Chargement des plannings en cours...</p>
+    </div>
+  </div>
 
   <script>
-    document.getElementById('rosterForm').addEventListener('submit', (e) => {
-      e.preventDefault();
+    // Extraction simplifiée des événements .ics
+    function parseICS(icsText) {
+      const events = [];
+      const blocks = icsText.split("BEGIN:VEVENT");
       
-      const tri = document.getElementById('tri').value.toUpperCase().trim();
-      const rank = document.getElementById('rank').value;
-      const base = document.getElementById('base').value.toUpperCase().trim();
-      const url = document.getElementById('url').value.trim();
+      for (let i = 1; i < blocks.length; i++) {
+        const block = blocks[i];
+        const summary = (block.match(/SUMMARY:(.*)/) || [])[1] || "Activité";
+        const dtstart = (block.match(/DTSTART:(.*)/) || [])[1] || "";
+        const dtend = (block.match(/DTEND:(.*)/) || [])[1] || "";
+        events.push({ summary: summary.trim(), dtstart: dtstart.trim(), dtend: dtend.trim() });
+      }
+      return events;
+    }
 
-      const title = encodeURIComponent(`[PILOT_REGISTRATION] ${tri}`);
-      const body = encodeURIComponent(`Trigramme: ${tri}\nRang: ${rank}\nBase: ${base}\nURL: ${url}`);
+    // Chargement principal
+    async function init() {
+      const app = document.getElementById("app");
+      try {
+        // 1. Charger data.json
+        const resData = await fetch('./data.json');
+        const pilots = await resData.json();
 
-      // Opens a pre-filled GitHub issue in a new tab
-      window.open(`https://github.com/valoch29/BTinder/issues/new?title=${title}&body=${body}`, '_blank');
-    });
+        app.innerHTML = ""; // Vider le loader
+
+        // 2. Pour chaque pilote dans data.json, charger son fichier .ics
+        for (const [id, pilot] of Object.entries(pilots)) {
+          let eventsHtml = "";
+          
+          try {
+            const resIcs = await fetch(pilot.url);
+            const icsText = await resIcs.text();
+            const events = parseICS(icsText);
+
+            if (events.length === 0) {
+              eventsHtml = `<p class="text-slate-500 text-sm">Aucun événement trouvé.</p>`;
+            } else {
+              eventsHtml = events.map(ev => `
+                <div class="bg-slate-700/50 p-3 rounded border border-slate-600 flex justify-between items-center">
+                  <span class="font-bold text-lime-400 font-mono">${ev.summary}</span>
+                  <span class="text-xs text-slate-400">${ev.dtstart}</span>
+                </div>
+              `).join('');
+            }
+          } catch (err) {
+            eventsHtml = `<p class="text-rose-400 text-sm">Erreur de téléchargement de l'URL iCal.</p>`;
+          }
+
+          // Affichage de la carte du pilote
+          app.innerHTML += `
+            <div class="bg-slate-800 border border-slate-700 rounded-xl p-5 space-y-3">
+              <div class="flex justify-between items-center border-b border-slate-700 pb-3">
+                <div>
+                  <h2 class="text-lg font-bold text-slate-100">${pilot.name} <span class="text-lime-400">(${id})</span></h2>
+                  <p class="text-xs text-slate-400">${pilot.rank} • Base : ${pilot.base}</p>
+                </div>
+              </div>
+              <div class="space-y-2">
+                ${eventsHtml}
+              </div>
+            </div>
+          `;
+        }
+      } catch (err) {
+        app.innerHTML = `<div class="p-4 bg-rose-500/20 border border-rose-500 text-rose-300 rounded-xl">
+          Impossible de charger <code>data.json</code>.
+        </div>`;
+      }
+    }
+
+    init();
   </script>
-
 </body>
 </html>
