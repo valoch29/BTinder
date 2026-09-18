@@ -1,54 +1,69 @@
 let uploadedFiles = [];
 
+// S'assure que le DOM est entièrement chargé avant d'exécuter le moindre script
 document.addEventListener('DOMContentLoaded', () => {
   const fileInput = document.getElementById('filesInput');
   const dropZone = document.getElementById('dropZone');
   const btnCompare = document.getElementById('btnCompare');
   const fileListDiv = document.getElementById('fileList');
+  const resultDiv = document.getElementById('result');
 
-  dropZone.addEventListener('click', () => fileInput.click());
+  if (!fileInput || !dropZone || !btnCompare) {
+    console.error("Erreur critique : un élément HTML est introuvable.");
+    return;
+  }
 
-  fileInput.addEventListener('change', (e) => {
-    uploadedFiles = Array.from(e.target.files);
-    updateFileList(fileListDiv, btnCompare);
+  // Clic sur la zone de dépôt
+  dropZone.addEventListener('click', () => {
+    fileInput.click();
   });
 
+  // Sélection des fichiers via l'explorateur
+  fileInput.addEventListener('change', (e) => {
+    if (e.target.files && e.target.files.length > 0) {
+      uploadedFiles = Array.from(e.target.files);
+      updateFileList(fileListDiv, btnCompare);
+    }
+  });
+
+  // Lancement de l'analyse au clic sur le bouton
   btnCompare.addEventListener('click', async (e) => {
     e.preventDefault();
-    const resultDiv = document.getElementById('result');
+    
+    if (uploadedFiles.length < 2) {
+      resultDiv.className = "result-box invalid";
+      resultDiv.classList.remove('hidden');
+      resultDiv.textContent = "Veuillez sélectionner au moins 2 fichiers .ics ou .txt.";
+      return;
+    }
+
     resultDiv.classList.remove('hidden', 'valid', 'invalid');
-    resultDiv.textContent = "Analyse croisée des plannings et des règles FTL...";
+    resultDiv.textContent = "Analyse croisée des plannings en cours...";
 
     try {
       const pilotsData = {};
 
       for (const file of uploadedFiles) {
         const text = await readFileAsync(file);
-        const name = file.name.replace(/\.[^/.]+$/, ""); // Nom sans extension
+        const name = file.name.replace(/\.[^/.]+$/, ""); // Nom du pilote basé sur le fichier
         pilotsData[name] = parseRoster(text, file.name);
       }
 
-      const pilotNames = Object.keys(pilotsData);
-      if (pilotNames.length < 2) {
-        throw new Error("Veuillez importer au moins 2 plannings pour comparer.");
-      }
-
-      // Recherche des swaps (1v1 et Triangulaires)
       const results = analyzeSwaps(pilotsData);
 
       if (results.length === 0) {
-        resultsDiv.className = "result-box invalid";
-        resultsDiv.innerHTML = "AUCUN SWAP LÉGAL TROUVÉ ❌<br><small>Aucune combinaison 1v1 ou triangulaire ne respecte l'ensemble des critères FTL.</small>";
+        resultDiv.className = "result-box invalid";
+        resultDiv.innerHTML = "AUCUN SWAP LÉGAL TROUVÉ ❌<br><small>Aucune combinaison 1v1 ou triangulaire ne respecte les critères FTL.</small>";
       } else {
         resultDiv.className = "result-box valid";
-        let html = `<strong>${results.length} OPPORTUNITÉ(S) DE SWAP DÉTECTÉES ✅</strong><br><br>`;
+        let html = `<strong>${results.length} OPPORTUNITÉ(S) DÉTECTÉE(S) ✅</strong><br><br>`;
         html += `<ul style="text-align: left; margin: 0; padding-left: 1rem; max-height: 350px; overflow-y: auto;">`;
         
         results.forEach(res => {
           html += `<li style="margin-bottom: 0.6rem; border-bottom: 1px solid #c8e6c9; padding-bottom: 0.4rem;">
             📅 <strong>${res.date}</strong><br>
             🔄 <em>${res.type}</em> : ${res.description}<br>
-            <span style="font-size: 0.78rem; color: #2e7d32;">✔️ FTL OK (12h Repos, FDP, 100h)</span>
+            <span style="font-size: 0.78rem; color: #2e7d32;">✔️ FTL OK (12h Repos, FDP)</span>
           </li>`;
         });
         
@@ -59,31 +74,27 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch (err) {
       console.error(err);
       resultDiv.className = "result-box invalid";
-      resultDiv.textContent = `Erreur : ${err.message}`;
+      resultDiv.textContent = `Erreur d'analyse : ${err.message}`;
     }
   });
 });
 
 function updateFileList(container, btn) {
   container.innerHTML = '';
-  if (uploadedFiles.length > 0) {
-    uploadedFiles.forEach(f => {
-      const badge = document.createElement('span');
-      badge.className = 'file-badge';
-      badge.textContent = f.name;
-      container.appendChild(badge);
-    });
-    btn.classList.remove('hidden');
-  } else {
-    btn.classList.add('hidden');
-  }
+  uploadedFiles.forEach(f => {
+    const badge = document.createElement('span');
+    badge.className = 'file-badge';
+    badge.textContent = f.name;
+    container.appendChild(badge);
+  });
+  btn.classList.remove('hidden');
 }
 
 function readFileAsync(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = (e) => resolve(e.target.result);
-    reader.onerror = () => reject(new Error("Erreur de lecture du fichier " + file.name));
+    reader.onerror = () => reject(new Error("Impossible de lire le fichier " + file.name));
     reader.readAsText(file);
   });
 }
@@ -182,14 +193,13 @@ function analyzeSwaps(pilotsData) {
   const validSwaps = [];
 
   sortedDates.forEach(date => {
-    // Récupérer l'activité de chaque pilote pour cette date (ou null si OFF)
     const dailyDuties = {};
     pilotNames.forEach(name => {
       const duty = pilotsData[name].find(e => e.dateStr === date);
-      dailyDuties[name] = duty || null; // null = OFF
+      dailyDuties[name] = duty || null;
     });
 
-    // 1. Recherche Swap 1v1 (Pilote A travaille, Pilote B est OFF)
+    // 1v1
     for (let i = 0; i < pilotNames.length; i++) {
       for (let j = 0; j < pilotNames.length; j++) {
         if (i === j) continue;
@@ -199,7 +209,6 @@ function analyzeSwaps(pilotsData) {
         const dutyA = dailyDuties[nameA];
         const dutyB = dailyDuties[nameB];
 
-        // A a un service, B est OFF -> B peut reprendre le service de A
         if (dutyA && !dutyB) {
           if (validateFtlRules(dutyA, pilotsData[nameB]).isLegal) {
             validSwaps.push({
@@ -212,7 +221,7 @@ function analyzeSwaps(pilotsData) {
       }
     }
 
-    // 2. Recherche Swap Triangulaire (A donne à B, B donne à C, C donne à A sur la même date)
+    // Triangulaire (3 pilotes ou plus)
     if (pilotNames.length >= 3) {
       for (let i = 0; i < pilotNames.length; i++) {
         for (let j = 0; j < pilotNames.length; j++) {
@@ -226,13 +235,12 @@ function analyzeSwaps(pilotsData) {
             const dutyB = dailyDuties[pB];
             const dutyC = dailyDuties[pC];
 
-            // Condition triangulaire : Chacun a un service ce jour-là et effectue une rotation circulaire
             if (dutyA && dutyB && dutyC) {
-              const bCanTakeA = validateFtlRules(dutyA, pilotsData[pB]).isLegal;
-              const cCanTakeB = validateFtlRules(dutyB, pilotsData[pC]).isLegal;
-              const aCanTakeC = validateFtlRules(dutyC, pilotsData[pA]).isLegal;
-
-              if (bCanTakeA && cCanTakeB && aCanTakeC) {
+              if (
+                validateFtlRules(dutyA, pilotsData[pB]).isLegal &&
+                validateFtlRules(dutyB, pilotsData[pC]).isLegal &&
+                validateFtlRules(dutyC, pilotsData[pA]).isLegal
+              ) {
                 validSwaps.push({
                   date: formatDateFr(date),
                   type: "🔄 Swap Triangulaire",
@@ -249,7 +257,6 @@ function analyzeSwaps(pilotsData) {
   return validSwaps;
 }
 
-// --- RÈGLES FTL (Idem version précédente) ---
 function validateFtlRules(targetDuty, receiverSchedule) {
   const startHour = targetDuty.start.getUTCHours();
   const maxFdpHours = getMaxFDP(startHour, targetDuty.sectors);
