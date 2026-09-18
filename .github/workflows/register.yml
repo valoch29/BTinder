@@ -1,0 +1,39 @@
+name: Register Pilot & Sync
+
+on:
+  issues:
+    types: [opened]
+
+jobs:
+  register:
+    if: contains(github.event.issue.title, '[PILOT_REGISTRATION]')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.11"
+
+    - name: Process Registration & Update Data
+      env:
+        ISSUE_BODY: ${{ github.event.issue.body }}
+      run: python process_registration.py
+
+    - name: Commit and Push Changes
+      run: |
+        git config --global user.name "github-actions[bot]"
+        git config --global user.email "github-actions[bot]@users.noreply.github.com"
+        git add pilots.json data.json *.html
+        git diff --quiet && git diff --staged --quiet || (git commit -m "Add new pilot registration" && git push)
+
+    - name: Close Issue
+      uses: peter-evans/close-issue@v3
+      with:
+        comment: "Pilote enregistré et agenda publié avec succès !"
