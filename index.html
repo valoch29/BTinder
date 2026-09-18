@@ -7,124 +7,131 @@
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-slate-900 text-slate-100 p-6 min-h-screen">
-  <div class="max-w-4xl mx-auto">
-    <header class="border-b border-slate-700 pb-4 mb-6 flex justify-between items-center">
+  <div class="max-w-4xl mx-auto space-y-6">
+    <header class="border-b border-slate-700 pb-4 flex justify-between items-center">
       <div>
         <h1 class="text-2xl font-bold text-lime-400">✈️ BTinder</h1>
-        <p class="text-xs text-slate-400 mt-1">Comparateur de plannings & Assistant de Swap</p>
+        <p class="text-xs text-slate-400">Comparateur de plannings & Assistant de Swap</p>
       </div>
-      <span class="text-xs bg-slate-800 border border-slate-700 px-3 py-1 rounded-full text-slate-400">
-        Mode Direct ICS
-      </span>
+      <span class="text-xs bg-slate-800 border border-slate-700 px-3 py-1 rounded-full text-slate-400">Mode Direct ICS</span>
     </header>
 
     <div id="app" class="space-y-6">
-      <p class="text-slate-400 text-sm">Chargement des plannings en cours...</p>
+      <p class="text-slate-400 text-sm">Chargement des plannings...</p>
     </div>
   </div>
 
   <script>
-    // Formater la date ICS (ex: 20261006T060000Z -> 06/10/2026 à 06:00 UTC)
-    function formatICSTime(icsTimeStr) {
-      if (!icsTimeStr) return '';
+    // Formatage simple de la date ICS (ex: 20261006T060000Z -> 06/10 06:00 UTC)
+    function formatTime(str) {
+      if (!str) return '';
       try {
-        const year = icsTimeStr.substring(0, 4);
-        const month = icsTimeStr.substring(4, 6);
-        const day = icsTimeStr.substring(6, 8);
-        const hour = icsTimeStr.substring(9, 11) || '00';
-        const min = icsTimeStr.substring(11, 13) || '00';
-        return `${day}/${month}/${year} à ${hour}:${min} UTC`;
-      } catch (e) {
-        return icsTimeStr;
-      }
+        return `${str.substring(6,8)}/${str.substring(4,6)} ${str.substring(9,11)}:${str.substring(11,13)} UTC`;
+      } catch (e) { return str; }
     }
 
-    // Extraction simplifiée des événements du fichier .ics
+    // Extraction des évènements ICS
     function parseICS(icsText) {
       const events = [];
       const blocks = icsText.split("BEGIN:VEVENT");
-      
       for (let i = 1; i < blocks.length; i++) {
         const block = blocks[i];
-        const summaryMatch = block.match(/SUMMARY:(.*)/);
-        const dtstartMatch = block.match(/DTSTART:(.*)/);
-        const dtendMatch = block.match(/DTEND:(.*)/);
-
-        const summary = summaryMatch ? summaryMatch[1].trim() : "Activité";
-        const dtstart = dtstartMatch ? dtstartMatch[1].trim() : "";
-        const dtend = dtendMatch ? dtendMatch[1].trim() : "";
-
-        events.push({ summary, dtstart, dtend });
+        const summary = (block.match(/SUMMARY:(.*)/) || [])[1]?.trim() || "Activité";
+        const dtstart = (block.match(/DTSTART:(.*)/) || [])[1]?.trim() || "";
+        events.push({ summary, dtstart });
       }
       return events;
     }
 
-    // Initialisation et chargement
+    // Regroupement par service (Duty)
+    function groupEvents(events) {
+      events.sort((a, b) => a.dtstart.localeCompare(b.dtstart));
+      const duties = [];
+      let current = null;
+
+      events.forEach(ev => {
+        const name = ev.summary.toUpperCase();
+
+        if (name.includes("CHECKIN")) {
+          current = { checkin: formatTime(ev.dtstart), checkout: null, flights: [] };
+        } else if (name.includes("CHECKOUT") && current) {
+          current.checkout = formatTime(ev.dtstart);
+          duties.push(current);
+          current = null;
+        } else if (current) {
+          current.flights.push(ev.summary);
+        } else if (name.includes("DAYOFF") || name.includes("VACATION")) {
+          duties.push({ type: "OFF", name: ev.summary, time: formatTime(ev.dtstart) });
+        }
+      });
+      return duties;
+    }
+
+    // Affichage des blocs
+    function renderDuties(events) {
+      const duties = groupEvents(events);
+      if (!duties.length) return `<p class="text-slate-500 text-sm">Aucune activité.</p>`;
+
+      return duties.map(d => {
+        if (d.type === "OFF") {
+          return `
+            <div class="bg-slate-800/40 border border-slate-700/50 p-2.5 rounded-lg flex justify-between items-center text-slate-400 text-xs">
+              <span>${d.name.includes("VACATION") ? "🌴" : "🏠"} ${d.name}</span>
+              <span class="text-slate-500">${d.time}</span>
+            </div>`;
+        }
+
+        const flightList = d.flights.map(f => `<span class="bg-slate-900 border border-slate-700 px-2 py-0.5 rounded text-xs font-mono text-lime-400">${f}</span>`).join(' ');
+        const summary = d.flights.join(' / ') || "Service Sol";
+
+        return `
+          <div class="bg-slate-800 border border-slate-700 rounded-lg p-3 space-y-2">
+            <div class="flex justify-between items-center border-b border-slate-700/60 pb-2">
+              <span class="text-xs text-slate-300 font-mono">⏱ ${d.checkin} ➔ ${d.checkout || '---'}</span>
+              <button onclick="alert('Swap demandé pour : ${summary}')" class="text-xs bg-lime-400 hover:bg-lime-500 text-slate-950 font-bold px-3 py-1 rounded transition">
+                Swapper ce service
+              </button>
+            </div>
+            <div class="flex flex-wrap gap-1.5">${flightList || '<span class="text-xs text-slate-500">Aucun vol</span>'}</div>
+          </div>`;
+      }).join('');
+    }
+
+    // Initialisation
     async function init() {
       const app = document.getElementById("app");
       try {
-        // 1. Charger data.json
-        const resData = await fetch('./data.json');
-        if (!resData.ok) throw new Error("Impossible de trouver data.json");
-        const pilots = await resData.json();
-
+        const res = await fetch('./data.json');
+        const pilots = await res.json();
         app.innerHTML = "";
 
-        // 2. Parcourir chaque pilote et télécharger son .ics
         for (const [id, pilot] of Object.entries(pilots)) {
-          let eventsHtml = "";
-          
+          let html = "";
           try {
-            // Utilisation d'un proxy CORS si l'URL n'est pas hébergée sur GitHub
-            const fetchUrl = pilot.url.includes('githubusercontent.com') 
-              ? pilot.url 
-              : `https://api.corsproxy.io/?${encodeURIComponent(pilot.url)}`;
-
-            const resIcs = await fetch(fetchUrl);
-            if (!resIcs.ok) throw new Error("Erreur de téléchargement");
-            const icsText = await resIcs.text();
-            const events = parseICS(icsText);
-
-            if (events.length === 0) {
-              eventsHtml = `<p class="text-slate-500 text-sm">Aucune activité trouvée dans le fichier.</p>`;
+            let icsText = "";
+            if (pilot.url.includes('githubusercontent.com')) {
+              icsText = await (await fetch(pilot.url)).text();
             } else {
-              eventsHtml = events.map(ev => `
-                <div class="bg-slate-700/50 p-3 rounded-lg border border-slate-600 flex justify-between items-center hover:border-slate-500 transition">
-                  <div>
-                    <span class="font-bold text-lime-400 font-mono text-base block">${ev.summary}</span>
-                    <span class="text-xs text-slate-300 mt-0.5 block">${formatICSTime(ev.dtstart)}</span>
-                  </div>
-                  <button onclick="alert('Demande de swap initiée pour le vol ${ev.summary}')" class="text-xs bg-lime-400 hover:bg-lime-500 text-slate-950 font-bold px-3 py-1.5 rounded transition">
-                    Swapper
-                  </button>
-                </div>
-              `).join('');
+              const proxy = `https://api.allorigins.win/get?url=${encodeURIComponent(pilot.url)}`;
+              const data = await (await fetch(proxy)).json();
+              icsText = data.contents || "";
             }
+            html = renderDuties(parseICS(icsText));
           } catch (err) {
-            eventsHtml = `<p class="text-rose-400 text-xs bg-rose-500/10 p-3 rounded border border-rose-500/20">
-              ⚠️ Impossible de charger l'URL du planning (Erreur réseau ou blocage CORS).
-            </p>`;
+            html = `<p class="text-rose-400 text-xs bg-rose-500/10 p-2 rounded">⚠️ Erreur de chargement du planning.</p>`;
           }
 
-          // Carte du pilote
           app.innerHTML += `
-            <div class="bg-slate-800 border border-slate-700 rounded-xl p-5 space-y-4">
-              <div class="flex justify-between items-center border-b border-slate-700 pb-3">
-                <div>
-                  <h2 class="text-lg font-bold text-slate-100">${pilot.name} <span class="text-lime-400">(${id})</span></h2>
-                  <p class="text-xs text-slate-400 mt-0.5">${pilot.rank} • Base : ${pilot.base}</p>
-                </div>
+            <div class="bg-slate-800/80 border border-slate-700 rounded-xl p-4 space-y-3">
+              <div class="border-b border-slate-700 pb-2">
+                <h2 class="text-base font-bold text-slate-100">${pilot.name} <span class="text-lime-400">(${id})</span></h2>
+                <p class="text-xs text-slate-400">${pilot.rank} • Base : ${pilot.base}</p>
               </div>
-              <div class="space-y-2">
-                ${eventsHtml}
-              </div>
-            </div>
-          `;
+              <div class="space-y-2">${html}</div>
+            </div>`;
         }
       } catch (err) {
-        app.innerHTML = `<div class="p-4 bg-rose-500/20 text-rose-300 rounded-xl border border-rose-500/30">
-          Impossible de charger <code>data.json</code>. Assure-toi que le fichier existe à la racine du dépôt.
-        </div>`;
+        app.innerHTML = `<p class="text-rose-400 text-sm">Fichier data.json introuvable.</p>`;
       }
     }
 
