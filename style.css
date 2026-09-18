@@ -19,28 +19,48 @@ body {
   margin: 0;
 }
 
+.card.wide {
+  max-width: 650px;
+}
+
 .card {
   background: var(--card);
   padding: 2.5rem;
   border-radius: 18px;
   box-shadow: 0 4px 20px rgba(0,0,0,0.05);
   width: 100%;
-  max-width: 400px;
+  box-sizing: border-box;
 }
 
 h1 { margin: 0; font-size: 1.8rem; font-weight: 600; text-align: center; }
 .subtitle { text-align: center; color: #86868b; margin-top: 0.2rem; margin-bottom: 2rem; font-size: 0.9rem; }
 
-.input-group { margin-bottom: 1.2rem; }
-label { display: block; font-size: 0.85rem; font-weight: 500; margin-bottom: 0.4rem; }
-input[type="file"] {
-  width: 100%;
-  padding: 0.6rem;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  font-size: 0.85rem;
-  box-sizing: border-box;
+.drop-zone {
+  border: 2px dashed var(--border);
+  padding: 1.5rem;
+  border-radius: 12px;
+  text-align: center;
   background: #fafafa;
+  cursor: pointer;
+  margin-bottom: 1rem;
+}
+.drop-zone input { display: none; }
+.drop-label span { color: var(--accent); font-weight: 500; }
+
+.file-list {
+  font-size: 0.85rem;
+  color: #555;
+  margin-bottom: 1.2rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+.file-badge {
+  background: #e1f0fe;
+  color: var(--accent);
+  padding: 0.3rem 0.6rem;
+  border-radius: 6px;
+  font-weight: 500;
 }
 
 button {
@@ -53,18 +73,16 @@ button {
   font-size: 1rem;
   font-weight: 600;
   cursor: pointer;
-  margin-top: 0.5rem;
 }
 
 .result-box {
   margin-top: 1.5rem;
   padding: 1rem;
   border-radius: 10px;
-  text-align: center;
-  font-weight: 600;
-  font-size: 0.95rem;
+  font-weight: 500;
+  font-size: 0.88rem;
   line-height: 1.4;
 }
-.result-box.valid { background: #e8f8ec; color: var(--success); }
+.result-box.valid { background: #e8f8ec; color: #1b5e20; }
 .result-box.invalid { background: #fde8e8; color: var(--danger); }
 .hidden { display: none; }
