@@ -4,6 +4,6 @@
     "name": "Valère",
     "rank": "FO",
     "base": "TLL",
-    "ics_url": "https://who.airbaltic.com/...votre_lien_secret.ics"
+    "ics_url": "https://who.airbaltic.com/api/v1/roster/calendar/download/FULL/WLH/1b286eb4-863a-4c45-b8bb-5419dee37e2b"
   }
 ]
